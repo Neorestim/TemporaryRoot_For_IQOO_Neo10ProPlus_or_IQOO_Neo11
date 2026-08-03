@@ -43,6 +43,23 @@
 
 ·进阶:
 
+  ·关于其他
+
+   ~\Resource_file下放了一些东西
+   
+   比如方便你在已有root的情况下直接激活KernelSU的bat，
+   
+   以及KernelSU的安装包，
+   
+   适用于IQOO Neo10 Pro+ /IQOO Neo11 的preload.so文件与kernelsu.ko核心（目前截至到neo10proplus:PD2463D_A_16.1.19.1.W10.V000L1可用，再新的不敢更新），
+
+   apex_su_fix 模块整个文件夹 与 Hybrid_Mount-v4.2.0 模块整个文件夹 ~~（这俩文件夹的推送我还真没试过，都直接从手机里pull出来的，应该可以用）~~
+
+   理论来说，你可以通过把kernelsu.ko直接insmod进Selinux宽容的环境里。 ~~（但是你直接用一键脚本自动激活或者 $(find /data/app -name libksud.so | grep "me.weishu.kernelsu" | head -n 1) late-load --allow-shell --package-name me.weishu.kernelsu 激活不好吗？）~~
+
+   另，如果需要 IQOO Neo10 Pro+的全分区备份可以Cue我。我也许会试着做一个救砖包？
+   
+  
   ·apex_su_fix模块激活原理
   
    提权的临时su位于apex/com.android/virt目录，这一目录的su为系统变量默认指向位置。解开屏保锁后，临时su会丢失root权限，对其所有的访问都会被 connected refused。

@@ -1,0 +1,1 @@
+import{h as e,m as t}from"./api-BdPM08LM.js";var n=t(()=>{let[t,n]=e(!1),[r,i]=e(!1),[a,o]=e(!1);return{get kasumiBuildEnabled(){return!0},get kasumiEnabled(){return t()},get kasumiAvailable(){return r()},get kasumiKernelSupported(){return a()},setKasumiStatus(e,t,r){n(e),i(t),o(r)}}});export{n as t};

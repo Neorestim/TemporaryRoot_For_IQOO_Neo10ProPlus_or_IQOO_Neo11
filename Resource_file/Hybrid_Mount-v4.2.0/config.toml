@@ -1,0 +1,38 @@
+default_mode = "overlay"
+disable_umount = false
+moduledir = "/data/adb/modules"
+mountsource = "KSU"
+overlay_mode = "ext4"
+
+[kasumi]
+cmdline_value = ""
+enable_hidexattr = false
+enable_kernel_debug = false
+enable_maps_spoof = false
+enable_mount_hide = false
+enable_statfs_spoof = false
+enable_stealth = false
+enabled = false
+hide_uids = []
+lkm_autoload = true
+lkm_dir = "/data/adb/modules/hybrid_mount/kasumi_lkm"
+lkm_kmi_override = ""
+mirror_path = "/dev/kasumi_mirror"
+uname_mode = "scoped"
+
+[kasumi.mount_hide]
+enabled = false
+path_pattern = ""
+
+[kasumi.statfs_spoof]
+enabled = false
+path = ""
+spoof_f_type = 0
+
+[kasumi.uname]
+domainname = ""
+machine = ""
+nodename = ""
+release = ""
+sysname = ""
+version = ""

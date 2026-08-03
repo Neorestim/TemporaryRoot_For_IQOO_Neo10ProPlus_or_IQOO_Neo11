@@ -1,0 +1,9 @@
+id=hybrid_mount
+name=Hybrid Mount
+version=4.2.0-1815
+versionCode=402000
+author=Hybrid Mount Developers
+description=Mount orchestration metamodule for KernelSU and APatch
+updateJson=https://raw.githubusercontent.com/Hybrid-Mount/meta-hybrid_mount/main/update.json
+metamodule=1
+webuiIcon=launcher.png

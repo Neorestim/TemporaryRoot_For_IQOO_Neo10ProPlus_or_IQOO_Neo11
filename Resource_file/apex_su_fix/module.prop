@@ -1,6 +1,0 @@
-id=apex_su_fix
-name=apex_su_fix
-version=1.0
-versionCode=1
-author=Zionye
-description=覆盖apex/com.android.virt/bin的su，仅供测试

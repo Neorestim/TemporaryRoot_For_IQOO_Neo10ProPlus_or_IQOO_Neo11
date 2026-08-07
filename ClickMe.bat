@@ -20,7 +20,7 @@ set "CMD_INSTALL_MODULE_HYBRID=adb shell su -c "mkdir -p /data/adb/modules && cp
 :MAIN_MENU
 cls
 echo =============================================================
-echo     适用于 IQOO Neo10 Pro+ / IQOO Neo11 的一键临时root工具
+echo   适用于 IQOO Neo10 Pro+ / IQOO Neo11 的一键临时root工具 v2
 echo =============================================================
 echo.
 
@@ -29,6 +29,7 @@ echo root有风险，玩机需谨慎。
 echo 本项目实现方法为通过替换preload.so并提权来获得临时root，
 echo 存在一定安全风险。个人自用，仅供分享。
 echo 若你是购买得到的，那你被骗了！
+echo 项目源地址：https://github.com/Neorestim/TemporaryRoot_For_IQOO_Neo10ProPlus_or_IQOO_Neo11
 echo.
 echo ============================================================
 echo.
@@ -53,11 +54,12 @@ goto MAIN_MENU
 start "ADB命令行" cmd /k "cd /d "%~dp0" && set PATH=%~dp0adb;%PATH% && echo ADB命令行已就绪，输入exit关闭"
 goto MAIN_MENU
 
-:: ===== 设备检测 =====
+:: ===== 设备检测（带重试） =====
 :CHECK_DEVICE
 cls
 echo [1/7] 正在检测设备连接...
-
+set /a retry=0
+:RETRY_LOOP
 set "DEV_COUNT=0"
 for /f "tokens=2" %%a in ('adb devices 2^>nul ^| findstr /r /c:"device$"') do set /a DEV_COUNT+=1
 
@@ -66,11 +68,19 @@ if %DEV_COUNT% gtr 1 (
     pause
     goto MAIN_MENU
 )
-if %DEV_COUNT% equ 0 (
-    echo 未检测到设备。
-    pause
-    goto MAIN_MENU
+if %DEV_COUNT% equ 1 goto DEVICE_OK
+
+set /a retry+=1
+if %retry% lss 7 (
+    echo 未检测到设备，%retry%/7 次重试，3秒后再次尝试...
+    timeout /t 3 /nobreak >nul
+    goto RETRY_LOOP
 )
+echo 已尝试7次仍未检测到设备，操作取消。
+pause
+goto MAIN_MENU
+
+:DEVICE_OK
 echo 设备已连接，done!
 timeout /t 1 >nul
 echo.
@@ -188,10 +198,51 @@ echo 推送完成，done!
 timeout /t 1 >nul
 echo.
 
-:: ===== 提权 =====
-echo [7/7] 正在执行提权，时间较长，在完成前请勿解锁手机，请耐心等待...
-adb shell "LD_PRELOAD=/data/local/tmp/preload.so /system/bin/id"
+:: ===== 提权（带超时保护 + Ctrl?C 处理） =====
+echo [7/7] 正在执行提权，时间较长，在完成前请勿解锁手机，请耐心等待（最长等待5分钟）...
+
+set "ROOT_FLAG=%temp%\root_done_%random%.tmp"
+del "%ROOT_FLAG%" 2>nul
+
+start "" /min cmd /c "adb shell "LD_PRELOAD=/data/local/tmp/preload.so /system/bin/id" && echo OK > "%ROOT_FLAG%""
+
+set /a elapsed=0
+:ROOT_LOOP
+timeout /t 10 /nobreak >nul
+if errorlevel 1 (
+    echo 检测到用户中断（Ctrl+C），返回主菜单...
+    del "%ROOT_FLAG%" 2>nul
+    taskkill /f /im adb.exe >nul 2>nul
+    pause
+    goto MAIN_MENU
+)
+
+set /a elapsed+=10
+
+if exist "%ROOT_FLAG%" goto ROOT_SUCCESS
+
+wmic process where "commandline like '%%LD_PRELOAD%%' and name='adb.exe'" get processid 2>nul | findstr /r "[0-9]" >nul
+if errorlevel 1 (
+    echo 提权进程意外终止，可能失败。
+    pause
+    goto MAIN_MENU
+)
+
+if %elapsed% geq 300 (
+    echo 提权超时（5分钟），判定失败，正在终止...
+    for /f "tokens=2 delims==" %%a in ('wmic process where "commandline like '%%LD_PRELOAD%%' and name='adb.exe'" get processid /value 2^>nul ^| find "="') do (
+        taskkill /pid %%a /f >nul 2>nul
+    )
+    del "%ROOT_FLAG%" 2>nul
+    pause
+    goto MAIN_MENU
+)
+
+goto ROOT_LOOP
+
+:ROOT_SUCCESS
 echo 提权完成，done!
+del "%ROOT_FLAG%" 2>nul
 timeout /t 1 >nul
 echo.
 
@@ -199,112 +250,93 @@ echo.
 if "%USER_CHOICE%"=="1" goto ROOT_PROCESS
 if "%USER_CHOICE%"=="2" goto SU_SHELL
 
-:: ===== 选项1：一键root（新窗口激活并校验） =====
+:: ===== 选项1：一键root（带自动重试） =====
 :ROOT_PROCESS
-if not exist "%~dp0Resource_file\Activate_KernelSU.bat" (
-    echo 错误：未找到激活脚本！
-    echo 请确保 "Resource_file\Activate_KernelSU.bat" 存在。
+set /a ksu_retry=0
+
+:FIRST_ACTIVATE
+echo 正在激活 KernelSU...
+call "%RES_DIR%\Activate_KernelSU.bat" --silent
+if !errorlevel! equ 0 (
+    echo KernelSU 模块加载成功，done!
+    goto ROOT_SUCCESS_MSG
+)
+echo 首次激活失败 (错误码!errorlevel!)，准备自动重试...
+set /a ksu_retry+=1
+
+:RETRY_ROOT_LOOP
+if !ksu_retry! gtr 3 (
+    echo 已达到最大重试次数 3 次，激活失败。
     pause
     goto MAIN_MENU
 )
-echo 正在启动 KernelSU 激活窗口...
-start "KernelSU 激活" cmd /k "cd /d "%~dp0Resource_file" && Activate_KernelSU.bat"
-echo 等待模块加载 (5秒)...
-timeout /t 5 /nobreak >nul
+echo 正在重启设备并重试 (第!ksu_retry!/3 次)...
+adb reboot >nul 2>nul
+echo 等待设备重新连接...
+:WAIT_RETRY
+timeout /t 2 /nobreak >nul
+if errorlevel 1 goto MAIN_MENU
+adb devices 2>nul | findstr /r /c:"device$" >nul
+if errorlevel 1 goto WAIT_RETRY
+timeout /t 3 /nobreak >nul
+echo 设备已重连。
 
-echo 正在校验 KernelSU 状态...
-adb shell su -c "ps -A | grep ksud" >nul 2>nul
-if %errorlevel% neq 0 (
-    echo.
-    echo ========================================
-    echo 检测到 KernelSU 似乎未正确加载！
-    echo 这可能是因为 bat 的转义问题。
-    echo 请手动打开以下文件并执行：
-    echo   %~dp0Resource_file\Activate_KernelSU.bat
-    echo 注意转义问题，完成后按任意键继续...
-    echo ========================================
-    pause >nul
-    goto MAIN_MENU
-)
-echo KernelSU 模块加载成功，done!
-timeout /t 1 >nul
-echo.
-
-:: ---------- Hybrid Mount 模块安装 ----------
-echo 正在检查 Hybrid Mount 模块状态...
-adb shell su -c "ls /data/adb/modules/Hybrid_Mount-v4.2.0" >nul 2>nul
-if !errorlevel! equ 0 goto HYBRID_ALREADY_INSTALLED
-
-echo 模块未安装。
-set /p install_hybrid=是否安装 Hybrid Mount 模块（挂载编排元模块）？(Y/N):
-if /i not "!install_hybrid!"=="Y" goto HYBRID_SKIP
-
-echo 正在安装...
-%CMD_PUSH_MODULE_HYBRID% >nul 2>nul
+echo 重新推送 preload.so ...
+adb push "%PRELOAD_SO%" /data/local/tmp/ >nul 2>nul
 if !errorlevel! neq 0 (
     echo 推送失败！
     pause
     goto MAIN_MENU
 )
-%CMD_INSTALL_MODULE_HYBRID% >nul 2>nul
-if !errorlevel! equ 0 (
-    echo 安装成功，done!
-) else (
-    echo 安装失败！
+
+echo 重新执行提权 (最长5分钟)...
+set "ROOT_RETRY_FLAG=%temp%\root_retry_!random!.tmp"
+del "!ROOT_RETRY_FLAG!" 2>nul
+start "" /min cmd /c "adb shell "LD_PRELOAD=/data/local/tmp/preload.so /system/bin/id" && echo OK > "!ROOT_RETRY_FLAG!""
+set /a elapsed=0
+:RETRY_PRIV_LOOP
+timeout /t 10 /nobreak >nul
+if errorlevel 1 (
+    echo 用户中断，返回主菜单。
+    del "!ROOT_RETRY_FLAG!" 2>nul
+    taskkill /f /im adb.exe >nul 2>nul
     pause
     goto MAIN_MENU
 )
-goto HYBRID_DONE
+set /a elapsed+=10
+if exist "!ROOT_RETRY_FLAG!" (
+    del "!ROOT_RETRY_FLAG!" 2>nul
+    echo 提权完成。
+    goto ACTIVATE_AGAIN
+)
+wmic process where "commandline like '%%LD_PRELOAD%%' and name='adb.exe'" get processid 2>nul | findstr /r "[0-9]" >nul
+if errorlevel 1 (
+    echo 提权进程意外终止，可能失败。
+    set /a ksu_retry+=1
+    goto RETRY_ROOT_LOOP
+)
+if !elapsed! geq 300 (
+    echo 提权超时，判定失败。
+    for /f "tokens=2 delims==" %%a in ('wmic process where "commandline like '%%LD_PRELOAD%%' and name='adb.exe'" get processid /value 2^>nul ^| find "="') do taskkill /pid %%a /f >nul 2>nul
+    set /a ksu_retry+=1
+    goto RETRY_ROOT_LOOP
+)
+goto RETRY_PRIV_LOOP
 
-:HYBRID_ALREADY_INSTALLED
-echo 模块已存在，跳过安装。
-goto HYBRID_DONE
+:ACTIVATE_AGAIN
+echo 重新尝试激活 KernelSU...
+call "%RES_DIR%\Activate_KernelSU.bat" --silent
+if !errorlevel! equ 0 (
+    echo 激活成功！
+    goto ROOT_SUCCESS_MSG
+)
+echo 激活再次失败 (错误码!errorlevel!)，准备重试...
+set /a ksu_retry+=1
+goto RETRY_ROOT_LOOP
 
-:HYBRID_SKIP
-echo 已跳过模块安装。
-goto HYBRID_DONE
-
-:HYBRID_DONE
+:ROOT_SUCCESS_MSG
 timeout /t 1 >nul
 echo.
-
-:: ---------- apex_su_fix 模块安装 ----------
-echo 正在检查 apex_su_fix 模块状态...
-echo 【Notice】该模块需要Hybrid Mount或其他挂载编排元模块作为前置模块
-adb shell su -c "ls /data/adb/modules/apex_su_fix" >nul 2>nul
-if !errorlevel! equ 0 goto FIX_ALREADY_INSTALLED
-
-echo 模块未安装。
-set /p install_fix=是否安装 apex_su_fix 模块（修复热重启后权限异常）？(Y/N): 
-if /i not "!install_fix!"=="Y" goto FIX_SKIP
-echo 正在安装...
-%CMD_PUSH_MODULE_FIX% >nul 2>nul
-if !errorlevel! neq 0 (
-    echo 推送失败！
-    pause
-    goto MAIN_MENU
-)
-%CMD_INSTALL_MODULE_FIX% >nul 2>nul
-if !errorlevel! equ 0 (
-    echo 安装成功，done!
-) else (
-    echo 安装失败！
-    pause
-    goto MAIN_MENU
-)
-goto FIX_DONE
-
-:FIX_ALREADY_INSTALLED
-echo 模块已存在，跳过安装。
-goto FIX_DONE
-
-:FIX_SKIP
-echo 已跳过模块安装。
-
-:FIX_DONE
-timeout /t 1 >nul
-echo.
-
 echo ========================================================
 echo 临时root已获取完成！现在可以解锁手机了。
 echo 提示：重启后root权限会丢失，需要重载模块请在KernelSU里选择热重启！

@@ -2,7 +2,7 @@
 
   该项目利用preload.so提权漏洞，暂时不清楚能存活多久，思路及preload.so来源于酷安
 
-  项目内置adb工具包，Hybrid Mount-v4.2.0项目（挂载编排元模块，是apex_su_fix的必要前置），apex_su_fix（自己写的小烂玩意，用于修复vivo胡乱改su及偶现的因KSUD狗带导致的su释放异常问题）
+  项目内置adb工具包，可以直接adb调用
 
   可能存在BUG，我自己测试下来感觉貌似没什么问题
 
@@ -52,37 +52,12 @@
    
    适用于IQOO Neo10 Pro+ /IQOO Neo11 的preload.so文件与kernelsu.ko核心（目前截至到neo10proplus:PD2463D_A_16.1.19.1.W10.V000L1可用，再新的不敢更新），
 
-   apex_su_fix 模块整个文件夹 与 Hybrid_Mount-v4.2.0 模块整个文件夹 ~~（这俩文件夹的推送我还真没试过，都直接从手机里pull出来的，应该可以用）~~
-
    理论来说，你可以通过把kernelsu.ko直接insmod进Selinux宽容的环境里。 ~~（但是你直接用一键脚本自动激活或者 $(find /data/app -name libksud.so | grep "me.weishu.kernelsu" | head -n 1) late-load --allow-shell --package-name me.weishu.kernelsu 激活不好吗？）~~
 
    另，如果需要 IQOO Neo10 Pro+的全分区备份可以Cue我。我也许会试着做一个救砖包？
    
   
-  ·apex_su_fix模块激活原理
-  
-   提权的临时su位于apex/com.android/virt目录，这一目录的su为系统变量默认指向位置。解开屏保锁后，临时su会丢失root权限，对其所有的访问都会被 connected refused。
-   
-   而有些应用比如shizuku，scene等，它们不支持自定义su，只能对着这个死了的su干瞪眼。apex_su_fix 模块就是为了解决这个问题。
-   
-   原理上，apex_su_fix 以 Hybrid Mount 为前置模块，先把su文件overlays到/system/bin/su（为了解决偶发性的KSUD发病导致kernelSU不释放su文件使得没有root访问点），
-   
-   之后把/system/bin/su 的快捷方式overlays到/apex/com.android.virt/bin/su，直接偷天换日路由到可以使用的su。不过，在这之前，你还需要一些操作。
-
-
- ·apex_su_fix模块激活方法
- 
-   安装Hybrid Mount模块，选择配置，额外分区添加apex，保存。
-   
-   是的，就这么简单。在我的设备上它是好使的。
-   
-   如果不好使呢？别慌，还有命令！
-   
-   在root shell下输入 /system/bin/su -c mount --bind /data/adb/modules/apex_su_fix/system/bin/su /apex/com.android.virt/bin/su
-   
-   注意一定要是root（比如命令行前面写的 PD2463:/ #  ，一定是 # 而不是 $ ！），否则这个mount可能并不生效。
-   
-   ~~再插一嘴：如果你选择直接在开机时用模块内的post-fs-data.sh进行mount，会导致找不到相机。我并不知道这和相机有什么关系，但是就是这样。~~
+  ~~·apex_su_fix模块~~现已移除
    
 
 ·正常使用：
@@ -91,7 +66,7 @@
   
   Zygisk在激活KernelSU之后必须进行热重启才能加载，甚至可能你热重启都加载不上。多试几下（
   
-  实测KernelSU Grant Toast模块会在报错提示未初始化的情况下正常运行，原因不明。bat我懒得改了，就那样吧。
+  实测KernelSU Grant Toast模块在绝大部分情况下会无法运行。
   
 
 # **Changelog:** 
@@ -99,3 +74,7 @@
  ·2026.8.3  15:02
     修复了apex_su_fix模块可能导致无法打开相机的异常情况。
     ~~（因为当时就是选择直接在开机时用模块内的post-fs-data.sh进行mount，结果手机直接找不到相机设备了。甚至不是相机崩溃而是直接找不到相机设备XD）~~
+
+ ·2026.8.7  19:04
+    移除了apex_su_fix模块
+      经实测，对apex的挂载会导致相机功能异常，就算短时间不会出问题，时间长了之后也会掉设备，遂移除

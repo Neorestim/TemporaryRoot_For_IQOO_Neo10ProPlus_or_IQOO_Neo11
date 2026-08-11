@@ -29,7 +29,7 @@
  
  adb shell rm -f /data/local/tmp/preload.so                              #清除手机内的preload.so
  
- adb push ~\Resource_file\preload.so /data/local/tmp/                    #推送有提权漏洞的preload.so
+ adb push Resource_file\preload.so /data/local/tmp/                    #推送有提权漏洞的preload.so
  
  adb shell "LD_PRELOAD=/data/local/tmp/preload.so /system/bin/id"        #加载有漏洞的preload.so，开始提权。这一步需要等待比较久，且preload.so不能再次提权。提权之后一旦解锁手机，会导致shell的临时root权限丢失（connected refused）。
  
